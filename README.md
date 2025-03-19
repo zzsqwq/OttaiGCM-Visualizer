@@ -1,15 +1,17 @@
-# 血糖曲线可视化工具
+# 欧态血糖仪可视化
 
-这是一个用于绘制每日血糖数据曲线图的工具，可以将连续葡萄糖监测数据以及活动记录直观地展示在同一图表上。
+这是一个专为欧态血糖仪设计的数据可视化工具，能够将连续葡萄糖监测数据以及日常活动记录直观地展示在同一图表上，帮助您更好地理解血糖变化与日常活动的关系。
 
 ## 功能特点
 
-- 从Excel文件中读取连续葡萄糖监测数据
+- 从Excel文件中读取欧态血糖仪连续葡萄糖监测数据
 - 在图表上标注各种活动（如饮食、运动等）
-- 显示血糖值的变化趋势
+- 通过不同颜色直观区分正常与超标的血糖范围
+- 显示血糖值的变化趋势与参考范围（3.9-7.8 mmol/L）
 - 提供简洁、直观且美观的数据展示
-- 支持命令行参数自定义图表生成
 - 支持从CSV文件加载自定义活动注释
+- 支持命令行参数自定义图表生成
+- 图像可存储在指定目录下
 
 ## 安装依赖
 
@@ -28,7 +30,7 @@ pip install pandas matplotlib openpyxl
 ### 基本用法
 
 ```bash
-python blood_glucose_visualizer.py
+python visualizer.py
 ```
 
 这将使用默认参数生成2025年3月17日的血糖曲线图。
@@ -36,7 +38,7 @@ python blood_glucose_visualizer.py
 ### 命令行参数
 
 ```bash
-python blood_glucose_visualizer.py -d "2025/3/17" -f "OttaiCGM_04E3E5F13CE6.xlsx" -s -a "annotations.csv"
+python visualizer.py -d "2025/3/17" -f "OttaiCGM_04E3E5F13CE6.xlsx" -s -a "annotations.csv" --image-dir "charts"
 ```
 
 参数说明：
@@ -47,6 +49,7 @@ python blood_glucose_visualizer.py -d "2025/3/17" -f "OttaiCGM_04E3E5F13CE6.xlsx
 - `-s, --show`：显示图表（不指定此参数则只保存图表而不显示）
 - `-a, --annotations`：注释CSV文件路径，用于加载自定义活动注释
 - `--create-sample`：创建示例注释CSV文件
+- `--image-dir`：图像存储目录，默认为"images"
 
 ### 日期格式支持
 
@@ -84,36 +87,47 @@ Excel文件应包含以下列：
 08:30,早餐：燕麦粥,0.5,2025/3/16
 ```
 
+## 血糖参考范围
+
+工具中使用的血糖参考范围：
+- 正常范围：3.9-7.8 mmol/L
+- 下限参考值：3.9 mmol/L
+- 上限参考值：7.8 mmol/L
+
+图表中使用不同颜色区分正常范围与超标范围的血糖值：
+- 蓝色：正常范围内的血糖值
+- 黄色：超出正常范围的血糖值
+
 ## 示例
 
 生成特定日期的血糖曲线图：
 
 ```bash
-python blood_glucose_visualizer.py -d "2025-03-16"
+python visualizer.py -d "2025-03-16"
 ```
 
-指定输出文件名：
+指定输出文件名和目录：
 
 ```bash
-python blood_glucose_visualizer.py -d "2025/3/17" -o "my_glucose_chart.png"
+python visualizer.py -d "2025/3/17" -o "my_glucose_chart.png" --image-dir "reports"
 ```
 
 使用不同的数据文件并显示图表：
 
 ```bash
-python blood_glucose_visualizer.py -f "other_cgm_data.xlsx" -s
+python visualizer.py -f "other_cgm_data.xlsx" -s
 ```
 
 创建示例注释文件并使用它：
 
 ```bash
-python blood_glucose_visualizer.py --create-sample
+python visualizer.py --create-sample
 ```
 
 指定自定义注释文件：
 
 ```bash
-python blood_glucose_visualizer.py -d "2025-03-16" -a "my_annotations.csv" -s
+python visualizer.py -d "2025-03-16" -a "my_annotations.csv" -s
 ```
 
 ## 自定义注释
@@ -127,4 +141,10 @@ python blood_glucose_visualizer.py -d "2025-03-16" -a "my_annotations.csv" -s
 
 ## 预览
 
-![血糖曲线示例](血糖曲线_2025年3月17日.png)
+![欧态血糖仪可视化示例](images/血糖曲线_2025年03月17日.png)
+
+## 注意事项
+
+- 箭头样式根据标注位置自动调整：标注在曲线上方时箭头向左凹，标注在曲线下方时箭头向右凹
+- 标注位置经过智能算法优化，避免相互重叠
+- 图表会自动处理血糖值穿过参考线(7.8 mmol/L)的情况，确保颜色正确变化

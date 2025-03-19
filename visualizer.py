@@ -333,7 +333,7 @@ def plot_glucose_curve(df, annotations, date_str):
             y_offset = direction * (base_offset + count_in_hour * 0.5)  # 增加梯度从0.25到0.5
         
         # 限制最大偏移
-        max_offset = 3.0  # 增加最大偏移允许更多间距
+        max_offset = 10.0  # 增加最大偏移允许更多间距
         min_offset = 1.0 * direction  # 确保最小偏移
         if direction > 0:
             y_offset = max(min(y_offset, max_offset), min_offset)
@@ -414,20 +414,20 @@ def plot_glucose_curve(df, annotations, date_str):
         
         # 计算箭头弯曲方向
         if text_point[1] > glucose_value:
-            # 标注在血糖值上方
-            arc_direction = 0.1
+            # 标注在血糖值上方 - 向左凹
+            arc_direction = 0.15  # 负值使箭头向左弯曲
         else:
-            # 标注在血糖值下方
-            arc_direction = -0.1
+            # 标注在血糖值下方 - 向右凹
+            arc_direction = 0.15   # 正值使箭头向右弯曲
             
-        # 箭头样式 - 更改箭头属性增加可见度
+        # 箭头样式 - 根据位置调整弯曲方向
         arrow_props = dict(
             arrowstyle='-|>',
             shrinkA=0,  # 不减少起点
             shrinkB=3,  # 减小终点压缩
             color=annotation_color,
-            linewidth=1.2,  # 增加线宽
-            connectionstyle=f'arc3,rad={arc_direction * 1.5}'  # 增加弯曲程度
+            linewidth=1.2,  # 线宽
+            connectionstyle=f'arc3,rad={arc_direction}'  # 根据位置调整弯曲方向
         )
         
         # 文本框样式 - 参考图样式（无边框）
@@ -484,6 +484,8 @@ def main():
                         help='注释CSV文件路径')
     parser.add_argument('--create-sample', action='store_true',
                         help='创建示例注释CSV文件')
+    parser.add_argument('--image-dir', type=str, default='images',
+                        help='图像存储目录 (默认: images)')
     
     args = parser.parse_args()
     
@@ -511,6 +513,9 @@ def main():
     # 绘制图表
     fig = plot_glucose_curve(df, annotations, date_str)
     
+    # 确保输出目录存在
+    os.makedirs(args.image_dir, exist_ok=True)
+    
     # 设置输出文件名
     if args.output:
         output_file = args.output
@@ -518,9 +523,12 @@ def main():
         formatted_date = target_date.strftime("%Y年%m月%d日")
         output_file = f'血糖曲线_{formatted_date}.png'
     
+    # 将输出文件路径与指定目录结合
+    output_path = os.path.join(args.image_dir, output_file)
+    
     # 保存图表
-    plt.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"图表已保存为: {output_file}")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight')
+    print(f"图表已保存为: {output_path}")
     
     # 显示图表
     if args.show:
