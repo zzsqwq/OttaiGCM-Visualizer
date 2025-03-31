@@ -6,6 +6,7 @@ import argparse
 import os
 import sys
 import csv
+from scipy.signal import find_peaks
 
 # 设置中文字体
 plt.rcParams['font.sans-serif'] = ['Arial Unicode MS', 'SimHei']
@@ -171,13 +172,34 @@ def parse_date(date_str):
         print("请使用以下格式之一: YYYY/MM/DD, YYYY-MM-DD, MM/DD/YYYY, DD/MM/YYYY 等")
         sys.exit(1)
 
+def find_local_peaks(df, min_distance_minutes=30, prominence=0.3):
+    """
+    找出血糖数据中的局部峰值
+    
+    参数:
+    - df: 包含血糖数据的DataFrame
+    - min_distance_minutes: 两个峰值之间的最小时间间隔(分钟)
+    - prominence: 峰值的最小突出度(mmol/L)
+    
+    返回:
+    - 峰值索引列表
+    """
+    # 获取血糖值序列
+    glucose_values = df['血糖值mmol/L'].values
+    
+    # 寻找峰值
+    peaks, _ = find_peaks(glucose_values, distance=min_distance_minutes//5, prominence=prominence)
+    
+    return peaks
+
 # 绘制血糖曲线图
-def plot_glucose_curve(df, annotations, date_str):
+def plot_glucose_curve(df, annotations, date_str, show_peaks=False, peak_distance=30, peak_prominence=0.3):
     # 更接近参考图的配色方案
     normal_color = '#4a86e8'  # 正常范围的蓝色
     warning_color = '#f39c12'  # 超标范围的黄色（更鲜明的橙色）
     fill_color = '#e8f2fe'  # 浅蓝色填充
     annotation_color = '#e74c3c'  # 鲜红色
+    peak_color = '#9c27b0'  # 紫色用于峰值标注
     grid_color = '#e6e6e6'  # 浅灰色网格
     
     fig, ax = plt.subplots(figsize=(14, 6))
@@ -240,14 +262,14 @@ def plot_glucose_curve(df, annotations, date_str):
     ax.axhline(y=normal_min, color='#95a5a6', linestyle='--', linewidth=1.2, alpha=0.8)
     ax.axhline(y=normal_max, color=warning_color, linestyle='--', linewidth=1.2, alpha=0.8)
     
-    # 添加参考区间文本标注 - 添加更详细的说明
-    ax.text(datetime.combine(date, datetime.strptime("00:15", "%H:%M").time()), 
+    # 添加参考区间文本标注 - 位置调整到右侧
+    ax.text(datetime.combine(date, datetime.strptime("23:45", "%H:%M").time()), 
             normal_min - 0.2, f"{normal_min} mmol/L (下限)", 
-            fontsize=9, color='#555555', ha='left', va='top')
+            fontsize=9, color='#555555', ha='right', va='top')
     
-    ax.text(datetime.combine(date, datetime.strptime("00:15", "%H:%M").time()), 
+    ax.text(datetime.combine(date, datetime.strptime("23:45", "%H:%M").time()), 
             normal_max + 0.2, f"{normal_max} mmol/L (上限)", 
-            fontsize=9, color=warning_color, ha='left', va='bottom')
+            fontsize=9, color=warning_color, ha='right', va='bottom')
     
     # 添加图例
     from matplotlib.lines import Line2D
@@ -281,10 +303,28 @@ def plot_glucose_curve(df, annotations, date_str):
     fig_width_px = fig.get_figwidth() * fig.dpi
     fig_height_px = fig.get_figheight() * fig.dpi
     
-    # 重写标注布局算法，完全消除重叠
-    all_annotations = []
-    for dt, text, y_offset in annotations:
-        all_annotations.append((dt, text, y_offset))
+    # 只有当show_peaks为True时才添加峰值标注
+    if show_peaks:
+        # 找出局部峰值并添加到annotations列表
+        peaks = find_local_peaks(df, min_distance_minutes=peak_distance, prominence=peak_prominence)
+        peak_annotations = []
+        for peak_idx in peaks:
+            peak_time = df['时刻'].iloc[peak_idx]
+            peak_value = df['血糖值mmol/L'].iloc[peak_idx]
+            
+            # 只添加超过7.8 mmol/L的峰值
+            if peak_value > 7.8:
+                # 创建峰值标注文本
+                peak_text = f"血糖峰值 {peak_value:.1f} mmol/L"
+                # 使用向上的偏移以突出显示峰值
+                peak_annotations.append((peak_time, peak_text, 0.7))
+                # 添加到time_to_glucose字典
+                time_to_glucose[peak_time] = peak_value
+        
+        # 合并所有标注
+        all_annotations = annotations + peak_annotations
+    else:
+        all_annotations = annotations
     
     # 按时间排序所有标注
     all_annotations.sort(key=lambda x: x[0])
@@ -420,12 +460,15 @@ def plot_glucose_curve(df, annotations, date_str):
             # 标注在血糖值下方 - 向右凹
             arc_direction = 0.15   # 正值使箭头向右弯曲
             
+        # 确定标注颜色 - 峰值标注使用不同颜色
+        current_annotation_color = peak_color if "血糖峰值" in text else annotation_color
+        
         # 箭头样式 - 根据位置调整弯曲方向
         arrow_props = dict(
             arrowstyle='-|>',
             shrinkA=0,  # 不减少起点
             shrinkB=3,  # 减小终点压缩
-            color=annotation_color,
+            color=current_annotation_color,  # 使用当前标注颜色
             linewidth=1.2,  # 线宽
             connectionstyle=f'arc3,rad={arc_direction}'  # 根据位置调整弯曲方向
         )
@@ -447,7 +490,7 @@ def plot_glucose_curve(df, annotations, date_str):
             ha='center',
             va='center',
             bbox=bbox_props,
-            color=annotation_color,
+            color=current_annotation_color,  # 使用当前标注颜色
             fontsize=9,
             weight='normal'
         )
@@ -486,6 +529,12 @@ def main():
                         help='创建示例注释CSV文件')
     parser.add_argument('--image-dir', type=str, default='images',
                         help='图像存储目录 (默认: images)')
+    parser.add_argument('--peaks', action='store_true',
+                      help='标记血糖峰值点 (默认: False)')
+    parser.add_argument('--peak-distance', type=int, default=30,
+                      help='峰值之间的最小时间间隔(分钟) (默认: 30)')
+    parser.add_argument('--peak-prominence', type=float, default=0.3,
+                      help='峰值的最小突出度(mmol/L) (默认: 0.3)')
     
     args = parser.parse_args()
     
@@ -511,7 +560,10 @@ def main():
     annotations = create_annotations(date_str, annotations_file=args.annotations)
     
     # 绘制图表
-    fig = plot_glucose_curve(df, annotations, date_str)
+    fig = plot_glucose_curve(df, annotations, date_str, 
+                            show_peaks=args.peaks,
+                            peak_distance=args.peak_distance,
+                            peak_prominence=args.peak_prominence)
     
     # 确保输出目录存在
     os.makedirs(args.image_dir, exist_ok=True)
